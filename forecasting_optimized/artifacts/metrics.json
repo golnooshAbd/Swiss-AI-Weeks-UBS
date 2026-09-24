@@ -1,0 +1,10 @@
+{
+  "multiclass_macro_f1": 0.4072970667361683,
+  "catboost_multiclass_macro_f1": 0.4400194846663259,
+  "pair_macro_f1": 0.5083591692629035,
+  "stream_macro_f1": 0.5017466810691231,
+  "blend_macro_f1": 0.5288216343860408,
+  "pair_threshold": 0.58,
+  "blend_weight": 0.35000000000000003,
+  "blend_threshold": 0.07
+}
