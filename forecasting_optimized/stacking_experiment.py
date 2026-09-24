@@ -161,32 +161,6 @@ def main() -> None:
     valid_catboost = np.mean(valid_catboost_folds, axis=0)
     train_meta = meta_features(oof_pair, oof_catboost)
     valid_meta = meta_features(valid_pair, valid_catboost)
-    
-    print("Extracting TF-IDF text features via SVD for meta-model...", flush=True)
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.decomposition import TruncatedSVD
-    
-    def get_text(frame):
-        frame["clean_description"] = frame["clean_description"].fillna("").astype(str)
-        return frame.groupby("client_id")["clean_description"].apply(lambda texts: " ".join(texts))
-    
-    train_frame = pd.read_csv(args.feature_dir / "train_features.csv")
-    valid_frame = pd.read_csv(args.feature_dir / "valid_features.csv")
-    train_text = get_text(train_frame).reindex(train_labels["client_id"], fill_value="")
-    valid_text = get_text(valid_frame).reindex(valid_labels["client_id"], fill_value="")
-    
-    tfidf = TfidfVectorizer(ngram_range=(1, 2), min_df=3, max_df=0.9, sublinear_tf=True)
-    train_tfidf = tfidf.fit_transform(train_text)
-    valid_tfidf = tfidf.transform(valid_text)
-    
-    svd = TruncatedSVD(n_components=25, random_state=2026)
-    train_svd = svd.fit_transform(train_tfidf)
-    valid_svd = svd.transform(valid_tfidf)
-
-    train_meta = np.column_stack([train_meta, train_svd])
-    valid_meta = np.column_stack([valid_meta, valid_svd])
-    print(f"Meta-features shape: {train_meta.shape}")
-
     candidates: list[tuple[str, object, np.ndarray, float]] = []
 
     report("fold-averaged pair rule", valid_target, as_distribution(valid_pair))

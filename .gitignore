@@ -1,1 +1,16 @@
 data/dataset/
+data/dataset_features/
+
+# Generated transaction-embedding artifacts (MiniLM cache and preprocessed arrays)
+transaction_embedding/artifacts/
+transaction_embedding/.venv/
+transaction_embedding/.pytest_cache/
+**/__pycache__/
+*.egg-info/
+.DS_Store
+
+# Prevent massive raw data uploads
+*.jsonl
+*.csv
+**/.venv/
+*.zip
