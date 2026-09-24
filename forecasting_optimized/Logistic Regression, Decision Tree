@@ -1,0 +1,331 @@
+import zipfile
+import os
+
+# Define the path to the zip file and the extraction directory
+zip_file_path = '/content/dataset.zip'
+extraction_path = 'data/'
+
+# Create the extraction directory if it doesn't exist
+os.makedirs(extraction_path, exist_ok=True)
+
+# Unzip the file
+with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+    zip_ref.extractall(extraction_path)
+
+print(f"'{zip_file_path}' unzipped to '{extraction_path}' successfully.")
+
+# Verify contents
+print("Contents of 'data/' directory:")
+for root, dirs, files in os.walk(extraction_path):
+    for name in files:
+        print(os.path.join(root, name))
+
+"""
+Next recurring transaction: pipeline v2 (stream-based cleaning + noise augmentation).
+
+Steps
+  1. Clean: drop everyday spending (including the generic purchase names
+     "digital order", "merchant charge", "service payment", "card purchase"),
+     keep outgoing non-refund payments that could be subscriptions.
+  2. Detect streams per client and currency: payments with the same merchant-code
+     family and an amount within 15% of the stream's recent median belong together
+     (this tolerates gradual price changes). Each stream gets one category by vote.
+  3. Features: one row per client x category (7 per client) from its strongest stream.
+  4. Augment train: valid and test rename many subscription payments to generic
+     names, so train is copied at several noise levels to match.
+  5. Train logistic regression and a decision tree (settings chosen by out-of-fold
+     macro-F1 on train), tune the "none" threshold and class weights on out-of-fold
+     predictions, then score the untouched validation set with macro-F1.
+  6. Export the cleaned transactions (stream payments with their category) per split.
+
+Usage
+  pip install pandas numpy scikit-learn
+  python pipeline_v2.py --data-dir path/to/unzipped/dataset --out-dir cleaned
+"""
+from __future__ import annotations
+
+import argparse
+import warnings
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, f1_score
+from sklearn.model_selection import GroupKFold
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.tree import DecisionTreeClassifier
+
+warnings.filterwarnings("ignore")
+SEED = 42
+CUTOFF = pd.Timestamp("2026-01-01", tz="UTC")
+CATS = ["streaming", "music", "cloud", "software", "insurance", "gym", "mobile"]
+LABELS = ["none"] + CATS
+
+KW = {
+    "streaming": ["media streaming", "video access"],
+    "music": ["audio streaming", "member pass"],
+    "cloud": ["cloud backup", "cloud access", "storage plan", "service plan"],
+    "software": ["saas billing", "productivity suite", "prod suite", "software access", "saas"],
+    "insurance": ["cover plan", "safe cover", "policy premium", "insurance"],
+    "gym": ["urban gym", "fit club", "fitness", "gym"],
+    "mobile": ["phone contract", "service bill"],
+}
+EVERYDAY = ["salary", "atm withdrawal", "p2p", "fresh foods", "pharmacy", "electronics shop", "coffee shop",
+            "hotel booking", "online marketplace", "ride share", "neighborhood", "casual dining",
+            "grocery store", "service fee",
+            "digital order", "merchant charge", "service payment", "card purchase"]  # renamed purchases
+SUB_GENERIC = ["monthly plan", "member plan", "subscription charge", "digital service"]  # renamed subscriptions
+AMBIGUOUS = ["premium plan", "digital plus", "dgtl plus", "prem plan"]
+MCC_FAMILY = {4814: "mobile", 5734: "software", 5732: "cloud", 6300: "insurance", 7997: "gym", 5812: "sm"}
+MUSIC_BELOW = 15.5  # streaming and music share MCC 5812; music is usually cheaper
+
+
+def kw_category(desc: str):
+    for cat, roots in KW.items():
+        if any(r in desc for r in roots):
+            return cat
+    return None
+
+
+def family(cat):
+    return "sm" if cat in ("streaming", "music") else cat
+
+
+# --------------------------------------------------------------- 1-2. streams
+def detect_streams(raw: pd.DataFrame, tol: float = 0.15) -> pd.DataFrame:
+    tx = raw[raw.timestamp < CUTOFF].copy()
+    tx["desc"] = tx.description.str.lower()
+    tx["kw"] = tx.desc.map(kw_category)
+    everyday = tx.desc.str.contains("|".join(EVERYDAY)) & tx.kw.isna()
+    c = tx[(tx.direction == "out") & (tx.type != "refund") & ~everyday].copy()
+    c["fam"] = c.mcc.map(MCC_FAMILY)
+    no_fam = c.fam.isna() & c.kw.notna()
+    c.loc[no_fam, "fam"] = c.loc[no_fam, "kw"].map(family)
+    c["fam"] = c.fam.fillna("unk")
+    c = c.sort_values(["client_id", "timestamp"])
+
+    # assign payments to streams in time order (tolerates gradual price drift)
+    sid = pd.Series(-1, index=c.index)
+    next_id = 0
+    for _, g in c.groupby(["client_id", "currency"], sort=False):
+        streams = []  # [family, amounts, id]
+        for idx, fam, amt in zip(g.index, g.fam, g.amount):
+            best, best_dev = None, None
+            for s in streams:
+                dev = abs(amt / np.median(s[1][-4:]) - 1)
+                if (s[0] == fam or fam == "unk") and dev <= tol and (best is None or dev < best_dev):
+                    best, best_dev = s, dev
+            if best is None:
+                best = [fam, [], next_id]
+                next_id += 1
+                streams.append(best)
+            best[1].append(amt)
+            sid[idx] = best[2]
+    c["sid"] = sid
+
+    # a stray payment with an unusual merchant code joins a big stream with the same amount
+    info = c.groupby("sid").agg(client_id=("client_id", "first"), currency=("currency", "first"),
+                                n=("amount", "size"), amt=("amount", "median"))
+    for s, r in info[info.n <= 2].iterrows():
+        cand = info[(info.client_id == r.client_id) & (info.currency == r.currency) & (info.n >= 3)]
+        if len(cand):
+            rel = (cand.amt / r.amt - 1).abs()
+            if rel.min() <= 0.05 and (rel <= 0.05).sum() == 1:
+                c.loc[c.sid == s, "sid"] = rel.idxmin()
+
+    c["category"] = c.groupby("sid", group_keys=False).apply(lambda g: pd.Series(stream_category(g), index=g.index))
+    c = c[c.category.notna()]
+    c["stream_n"] = c.groupby("sid").sid.transform("size")
+    return tx, c
+
+
+def stream_category(g: pd.DataFrame):
+    fams = g.fam[g.fam != "unk"]
+    kws = g.kw.dropna()
+    fam = fams.mode().iloc[0] if len(fams) else (family(kws.mode().iloc[0]) if len(kws) else None)
+    if fam != "sm":
+        return fam
+    sm = kws[kws.isin(["streaming", "music"])].value_counts()
+    if len(sm) and (len(sm) == 1 or sm.iloc[0] > sm.iloc[1]):
+        return sm.index[0]
+    return "music" if g.amount.median() < MUSIC_BELOW else "streaming"
+
+
+def stream_table(raw: pd.DataFrame):
+    tx, c = detect_streams(raw)
+    rows = []
+    for s, g in c.groupby("sid"):
+        t = g.timestamp
+        gaps = t.diff().dt.total_seconds().dropna() / 86400
+        cat = g.category.iloc[0]
+        rows.append(dict(
+            client_id=g.client_id.iloc[0], sid=s, category=cat, n=len(g), first=t.iloc[0], last=t.iloc[-1],
+            median_gap=gaps.median() if len(gaps) else np.nan,
+            std_gap=gaps.std() if len(gaps) > 1 else np.nan,
+            last_gap=gaps.iloc[-1] if len(gaps) else np.nan,
+            dom=t.dt.day.iloc[-3:].median(), dom_std=t.dt.day.std() if len(t) > 1 else np.nan,
+            amount=g.amount.median(), amount_cv=g.amount.std() / g.amount.mean() if len(g) > 1 else np.nan,
+            currency=g.currency.iloc[0], kw_share=(g.kw == cat).mean(), mcc_share=(g.fam == family(cat)).mean(),
+            months_q4=t[t >= pd.Timestamp("2025-10-01", tz="UTC")].dt.month.nunique(),
+            n_last90=int((t >= CUTOFF - pd.Timedelta(days=90)).sum()),
+        ))
+    s = pd.DataFrame(rows)
+    s["since_last"] = (CUTOFF - s["last"]).dt.total_seconds() / 86400
+    s["since_first"] = (CUTOFF - s["first"]).dt.total_seconds() / 86400
+    s["to_next"] = s.median_gap.fillna(30.4) - s.since_last
+    s["overdue"] = s.since_last / s.median_gap
+    ref = tx[tx.type == "refund"][["client_id", "currency", "amount", "timestamp"]]
+    m = s.merge(ref, on=["client_id", "currency"], suffixes=("", "_r"))
+    m = m[((m.amount_r / m.amount - 1).abs() <= 0.10) & (m.timestamp > m["last"])]
+    s["refund_after_last"] = s.sid.isin(m.sid).astype(int)
+    return s, c
+
+
+# ------------------------------------------------------------------ 3. features
+FEATURE_COLS = ["n", "median_gap", "std_gap", "last_gap", "dom", "dom_std", "amount_cv", "kw_share", "mcc_share",
+                "months_q4", "n_last90", "since_last", "since_first", "to_next", "overdue",
+                "refund_after_last", "active", "quality"]
+
+
+def build_features(streams: pd.DataFrame, client_ids) -> pd.DataFrame:
+    s = streams[streams.n >= 2].copy()
+    s["active"] = ((s.since_last <= 35) | ((s.median_gap > 45) & (s.overdue < 1.3))).astype(int)
+    s["quality"] = (s.kw_share >= 0.5).astype(int)
+    s["score"] = s.n_last90 * 10 + s.n + s.kw_share + s.mcc_share
+    best = s.sort_values("score", ascending=False).drop_duplicates(["client_id", "category"])
+    grid = pd.MultiIndex.from_product([sorted(client_ids), CATS], names=["client_id", "category"])
+    df = best.set_index(["client_id", "category"])[FEATURE_COLS].reindex(grid)
+    df["n_streams_cat"] = s.groupby(["client_id", "category"]).size().reindex(grid).fillna(0)
+    df = df.reset_index()
+    df["has_stream"] = df.n.notna().astype(int)
+    df["n"] = df.n.fillna(0)
+    df["last_gap_ratio"] = df.last_gap / df.median_gap
+    for name, mask in [("act", df.active == 1), ("qact", (df.active == 1) & (df.quality == 1))]:
+        tn, dm = df.to_next.where(mask), df.dom.where(mask)
+        df[f"rank_next_{name}"] = tn.groupby(df.client_id).rank(method="min")
+        df[f"rank_dom_{name}"] = dm.groupby(df.client_id).rank(method="min")
+        df[f"gap_to_best_{name}"] = tn - tn.groupby(df.client_id).transform("min")
+        df[f"client_n_{name}"] = mask.groupby(df.client_id).transform("sum")
+    df["client_max_kw_share_act"] = df.kw_share.where(df.active == 1).groupby(df.client_id).transform("max")
+    return df.join(pd.get_dummies(df.category, prefix="cat", dtype=int))
+
+
+# ---------------------------------------------------------------- 4. augmentation
+SUB_TERMS = "|".join(sum(KW.values(), []) + AMBIGUOUS)
+
+
+def corrupt(raw: pd.DataFrame, p_desc: float, p_mcc: float, seed: int) -> pd.DataFrame:
+    """Rename subscription payments to generic names and perturb merchant codes, like valid/test."""
+    rng = np.random.default_rng(seed)
+    x = raw.copy()
+    is_sub = (x.direction == "out") & (x.type != "refund") & x.description.str.lower().str.contains(SUB_TERMS)
+    rename = is_sub & (rng.random(len(x)) < p_desc)
+    x.loc[rename, "description"] = rng.choice(SUB_GENERIC, rename.sum())
+    remcc = is_sub & (rng.random(len(x)) < p_mcc)
+    x.loc[remcc, "mcc"] = rng.choice([5411, 5912, 4111, 6012, 7011], remcc.sum())
+    x["client_id"] = x.client_id + f"_a{seed}"
+    return x
+
+
+NOISE_LEVELS = [(0.0, 0.0), (0.4, 0.05), (0.55, 0.07), (0.7, 0.09)]
+
+
+# ------------------------------------------------------------------ 5. models
+def client_labels(df, proba, threshold, weights):
+    p = df[["client_id", "category"]].assign(p=proba).pivot(index="client_id", columns="category", values="p")[CATS]
+    p = p * pd.Series(weights)[CATS]
+    return p.idxmax(axis=1).where(p.max(axis=1) >= threshold, "none")
+
+
+def macro(y, pred):
+    return f1_score(y, pred.loc[y.index], average="macro", labels=LABELS)
+
+
+def tune_decision(df, oof):
+    y = df.groupby("client_id").label.first()
+    w = {c: 1.0 for c in CATS}
+    ts = np.round(np.arange(0.02, 0.81, 0.01), 2)
+    t = max(ts, key=lambda t: macro(y, client_labels(df, oof, t, w)))
+    for _ in range(2):
+        for c in CATS:
+            w[c] = float(max(np.round(np.arange(0.6, 1.65, 0.05), 2),
+                             key=lambda v: macro(y, client_labels(df, oof, t, {**w, c: v})))
+            )
+        t = max(ts, key=lambda t: macro(y, client_labels(df, oof, t, w)))
+    return float(t), w, macro(y, client_labels(df, oof, t, w))
+
+
+MODELS = {
+    "Logistic regression": lambda: make_pipeline(
+        SimpleImputer(strategy="median", add_indicator=True), StandardScaler(),
+        LogisticRegression(max_iter=3000, C=0.02)),
+    "Decision tree": lambda: make_pipeline(
+        SimpleImputer(strategy="median", add_indicator=True),
+        DecisionTreeClassifier(max_depth=8, min_samples_leaf=100, random_state=SEED)),
+}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data-dir", type=Path, default=Path("data")) # Modified default path
+    ap.add_argument("--out-dir", type=Path, default=Path("cleaned"))
+    # Parse only known arguments, ignoring others passed by the kernel
+    args, unknown = ap.parse_known_args()
+
+    d, out = args.data_dir, args.out_dir
+    out.mkdir(parents=True, exist_ok=True)
+    load = lambda n: pd.read_json(d / f"{n}_transactions.jsonl", lines=True)
+    labels = {sp: pd.read_csv(d / f"{sp}_labels.csv").set_index("client_id").target_next_recurring_merchant
+              for sp in ("train", "valid")}
+
+    # cleaned exports for the real (uncorrupted) splits
+    stream_tables = {}
+    for sp in ("train", "valid", "test"):
+        print(f"Cleaning {sp}...", flush=True)
+        s, c = stream_table(load(sp))
+        stream_tables[sp] = s
+        c[["client_id", "timestamp", "amount", "currency", "description", "mcc", "type", "category",
+           "sid", "stream_n"]].rename(columns={"sid": "stream_id"}).to_csv(out / f"cleaned_{sp}.csv", index=False)
+
+    print("Building augmented train...", flush=True)
+    raw_train = load("train")
+    parts = []
+    for i, (pd_, pm) in enumerate(NOISE_LEVELS):
+        s = stream_table(corrupt(raw_train, pd_, pm, i))[0] if i else stream_tables["train"].assign(
+            client_id=lambda x: x.client_id + "_a0")
+        lab = labels["train"].copy()
+        lab.index = lab.index + f"_a{i}"
+        f = build_features(s, lab.index)
+        f["label"], f["orig"], f["aug"] = f.client_id.map(lab), f.client_id.str[:7], i
+        parts.append(f)
+    train = pd.concat(parts, ignore_index=True)
+    train["target"] = (train.category == train.label).astype(int)
+    valid = build_features(stream_tables["valid"], labels["valid"].index)
+    valid["label"] = valid.client_id.map(labels["valid"])
+    feats = [c for c in train.columns if c not in {"client_id", "category", "label", "target", "orig", "aug"}]
+    print(f"train rows {len(train)} (4 noise copies), valid rows {len(valid)}, features {len(feats)}")
+
+    y = valid.groupby("client_id").label.first()
+    noisy = (train.aug >= 2).values
+    results = {}
+    for name, make in MODELS.items():
+        oof = np.zeros(len(train))
+        for a, b in GroupKFold(5).split(train, groups=train.orig):
+            oof[b] = make().fit(train.iloc[a][feats], train.iloc[a].target).predict_proba(train.iloc[b][feats])[:, 1]
+        t, w, oof_f1 = tune_decision(train[noisy], oof[noisy])
+        model = make().fit(train[feats], train.target)
+        pred = client_labels(valid, model.predict_proba(valid[feats])[:, 1], t, w).loc[y.index]
+        results[name] = (oof_f1, macro(y, pred))
+        print(f"\n=== {name} (none threshold {t}) ===")
+        print(classification_report(y, pred, labels=LABELS, digits=3, zero_division=0))
+
+    print("\nMacro-F1                 out-of-fold (noisy train)   validation")
+    for k, (o, v) in results.items():
+        print(f"  {k:<22s}          {o:.3f}                {v:.3f}")
+
+
+if __name__ == "__main__":
+    main()
