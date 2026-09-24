@@ -26,7 +26,7 @@ def add_candidate_families(frame: pd.DataFrame, repository: Path) -> pd.DataFram
     result["candidate_family"] = [
         classify_transaction(mcc, description, amount)
         for mcc, description, amount in zip(
-            result["mcc"], result["description"], result["amount"], strict=True
+            result["mcc"], result["description"], result["amount"]
         )
     ]
     return result

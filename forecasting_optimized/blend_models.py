@@ -83,7 +83,7 @@ def main() -> None:
         family_by_client = {
             str(client_id): probabilities
             for client_id, probabilities in zip(
-                family_data["client_ids"], family_data["probabilities"], strict=True
+                family_data["client_ids"], family_data["probabilities"]
             )
         }
     family = as_distribution(np.stack([family_by_client[client_id] for client_id in wide.index]))
@@ -92,7 +92,7 @@ def main() -> None:
         neural_by_client = {
             str(client_id): probabilities
             for client_id, probabilities in zip(
-                neural_data["client_ids"], neural_data["probabilities"], strict=True
+                neural_data["client_ids"], neural_data["probabilities"]
             )
         }
     neural = np.stack([neural_by_client[client_id] for client_id in wide.index])
@@ -134,7 +134,7 @@ def main() -> None:
             by_client = {
                 str(client_id): values
                 for client_id, values in zip(
-                    data["client_ids"], data["probabilities"], strict=True
+                    data["client_ids"], data["probabilities"]
                 )
             }
         extra_sources["stacking"] = np.stack([by_client[client_id] for client_id in wide.index])
@@ -155,7 +155,7 @@ def main() -> None:
             xgboost_by_client = {
                 str(client_id): values
                 for client_id, values in zip(
-                    data["client_ids"], data["probabilities"], strict=True
+                    data["client_ids"], data["probabilities"]
                 )
             }
         extra_sources["xgboost_pair"] = np.stack(
@@ -167,7 +167,7 @@ def main() -> None:
             ranking_by_client = {
                 str(client_id): values
                 for client_id, values in zip(
-                    data["client_ids"], data["probabilities"], strict=True
+                    data["client_ids"], data["probabilities"]
                 )
             }
         extra_sources["ranking"] = np.stack(
@@ -179,7 +179,7 @@ def main() -> None:
             embedding_by_client = {
                 str(client_id): values
                 for client_id, values in zip(
-                    data["client_ids"], data["probabilities"], strict=True
+                    data["client_ids"], data["probabilities"]
                 )
             }
         extra_sources["embedding_pool"] = np.stack(
@@ -191,7 +191,7 @@ def main() -> None:
             description_by_client = {
                 str(client_id): values
                 for client_id, values in zip(
-                    data["client_ids"], data["probabilities"], strict=True
+                    data["client_ids"], data["probabilities"]
                 )
             }
         extra_sources["description_stream"] = np.stack(
@@ -263,7 +263,7 @@ def main() -> None:
     print(f"weights catboost/pair/family/neural={weights}")
     print(f"extra sequential blend weights={extra_weights}")
     print(f"class-specific adjustments={class_adjustments}")
-    print(f"class offsets={dict(zip(LABELS, offsets.round(3), strict=True))}")
+    print(f"class offsets={dict(zip(LABELS, offsets.round(3)))}")
     print(
         classification_report(
             actual,
@@ -277,9 +277,9 @@ def main() -> None:
     configuration = {
         "macro_f1": score,
         "weights": dict(
-            zip(("catboost", "pair", "family", "neural"), weights, strict=True)
+            zip(("catboost", "pair", "family", "neural"), weights)
         ),
-        "class_offsets": dict(zip(LABELS, offsets.tolist(), strict=True)),
+        "class_offsets": dict(zip(LABELS, offsets.tolist())),
         "extra_weights": extra_weights,
         "class_adjustments": class_adjustments,
     }

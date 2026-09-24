@@ -51,7 +51,7 @@ def neural_probabilities(
         for batch in loader:
             batch = batch.to(device)
             output.append(torch.softmax(model(batch), dim=-1).cpu().numpy())
-    return dict(zip(sequences.client_ids, np.concatenate(output), strict=True))
+    return dict(zip(sequences.client_ids, np.concatenate(output)))
 
 
 def main() -> None:
@@ -155,7 +155,7 @@ def main() -> None:
             check=True,
         )
     with np.load(neural_cache) as data:
-        neural_by_client = dict(zip(data["client_ids"].astype(str), data["probabilities"], strict=True))
+        neural_by_client = dict(zip(data["client_ids"].astype(str), data["probabilities"]))
     neural = np.stack([neural_by_client[client_id] for client_id in client_ids])
 
     configuration = json.loads((args.artifact_dir / "blend_config.json").read_text())
@@ -234,7 +234,7 @@ def main() -> None:
             )
         with np.load(embedding_cache) as data:
             pooled_by_client = dict(
-                zip(data["client_ids"].astype(str), data["features"], strict=True)
+                zip(data["client_ids"].astype(str), data["features"])
             )
         pooled = np.ascontiguousarray(
             np.stack([pooled_by_client[client_id] for client_id in client_ids]),

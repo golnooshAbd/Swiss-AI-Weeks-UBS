@@ -16,3 +16,7 @@ forecasting_optimized/submission_optimized.csv
 # Prevent massive raw data uploads
 *.jsonl
 *.csv
+.venv/
+data/
+forecasting_optimized/artifacts/
+transaction_embedding/artifacts/

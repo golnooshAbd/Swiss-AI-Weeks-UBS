@@ -56,7 +56,7 @@ def _amount_clusters(frame: pd.DataFrame, relative_tolerance: float = 0.12) -> l
     ordered = frame.sort_values("amount", kind="stable")
     clusters: list[list[int]] = []
     centers: list[float] = []
-    for index, amount in zip(ordered.index, ordered["amount"], strict=True):
+    for index, amount in zip(ordered.index, ordered["amount"]):
         amount = float(amount)
         if not clusters:
             clusters.append([index])

@@ -45,7 +45,7 @@ class LabeledSequences(Dataset[tuple[TransactionSequence, int]]):
 
 
 def collate(items: list[tuple[TransactionSequence, int]]) -> LabeledBatch:
-    sequences, labels = zip(*items, strict=True)
+    sequences, labels = zip(*items)
     return LabeledBatch(
         collate_transaction_sequences(list(sequences)),
         torch.tensor(labels, dtype=torch.long),
@@ -58,7 +58,7 @@ def load_label_indices(path: Path) -> tuple[dict[str, int], np.ndarray]:
     labels = {
         client_id: mapping[label]
         for client_id, label in zip(
-            frame["client_id"], frame["target_next_recurring_merchant"], strict=True
+            frame["client_id"], frame["target_next_recurring_merchant"]
         )
     }
     return labels, frame["target_next_recurring_merchant"].map(mapping).to_numpy()

@@ -39,7 +39,7 @@ class TransactionEncoder(nn.Module):
                 # Index 0 is a learned unknown-category representation. Padded
                 # positions also contain zeros, but are masked out after encoding.
                 nn.Embedding(categorical_cardinalities[name], dim)
-                for name, dim in zip(categorical_names, categorical_dims, strict=True)
+                for name, dim in zip(categorical_names, categorical_dims)
             ]
         )
         input_dimension = self.DESCRIPTION_OUTPUT_DIM + sum(categorical_dims) + dense_dimension
