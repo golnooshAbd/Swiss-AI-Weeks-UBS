@@ -254,9 +254,25 @@ def build_feature_tables(
     if missing:
         raise ValueError(f"Missing feature columns: {sorted(missing)}")
 
+    import joblib
+    from pathlib import Path
+    artifact_dir = Path(__file__).parent / "artifacts"
+    svd_pipeline = None
+    svd_dict = {}
+    if (artifact_dir / "text_svd_pipeline.joblib").exists():
+        svd_pipeline = joblib.load(artifact_dir / "text_svd_pipeline.joblib")
+
     data = frame.copy()
     data["client_id"] = data["client_id"].astype(str)
     data["timestamp"] = pd.to_datetime(data["timestamp"], utc=True, errors="raise")
+    
+    if svd_pipeline is not None:
+        data["clean_description"] = data.get("clean_description", data["description"]).fillna("").astype(str)
+        print("Extracting SVD features in batch...", flush=True)
+        family_texts_df = data.groupby(["client_id", "candidate_family"])["clean_description"].apply(lambda texts: " ".join(texts)).reset_index()
+        svd_features = svd_pipeline.transform(family_texts_df["clean_description"].values)
+        for i, row in family_texts_df.iterrows():
+            svd_dict[(row["client_id"], row["candidate_family"])] = svd_features[i]
     if (data["timestamp"] >= cutoff).any():
         raise ValueError("Feature construction received a transaction at or after the cutoff")
 
@@ -287,6 +303,10 @@ def build_feature_tables(
             stats = _transaction_stats(
                 client[client["candidate_family"] == family], cutoff
             )
+            if (client_id, family) in svd_dict:
+                for idx, val in enumerate(svd_dict[(client_id, family)]):
+                    stats[f"text_svd_{idx}"] = float(val)
+            
             family_stats[family] = stats
             wide.update({f"{family}__{name}": value for name, value in stats.items()})
 

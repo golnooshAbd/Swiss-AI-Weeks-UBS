@@ -20,7 +20,7 @@ from txembed import (
 from txembed.batching import TransactionSequence
 
 from features import LABELS
-from neural_model import TemporalGRUForecastModel
+from neural_model import TemporalTransformerForecastModel
 
 
 @dataclass
@@ -139,7 +139,7 @@ def main() -> None:
     )
 
     preprocessor = TransactionPreprocessor.load(args.artifact_dir / "preprocessor.json")
-    model = TemporalGRUForecastModel.from_preprocessor(preprocessor).to(device)
+    model = TemporalTransformerForecastModel.from_preprocessor(preprocessor).to(device)
     counts = np.bincount(train_label_array, minlength=len(LABELS)).astype(np.float64)
     weights = np.sqrt(len(train_label_array) / (len(LABELS) * counts))
     loss_fn = nn.CrossEntropyLoss(weight=torch.tensor(weights, dtype=torch.float32, device=device))

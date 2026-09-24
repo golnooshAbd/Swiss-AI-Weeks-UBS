@@ -36,8 +36,10 @@ def main() -> None:
         pd.read_csv(args.feature_dir / "valid_features.csv"), valid_targets.index
     )
     selected = joblib.load(args.artifact_dir / "model.joblib")
-    train_pairs = train_pairs.reindex(columns=selected["pair_columns"])
-    valid_pairs = valid_pairs.reindex(columns=selected["pair_columns"])
+    pair_columns = list(selected["pair_columns"])
+    pair_columns += [f"text_svd_{i}" for i in range(10)]
+    train_pairs = train_pairs.reindex(columns=pair_columns).fillna(0.0)
+    valid_pairs = valid_pairs.reindex(columns=pair_columns).fillna(0.0)
     train_binary = np.asarray(
         [train_targets[client_id] == family for client_id, family in train_pairs.index],
         dtype=np.int8,
@@ -109,7 +111,7 @@ def main() -> None:
     joblib.dump(
         {
             "model": model,
-            "columns": selected["pair_columns"],
+            "columns": pair_columns,
             "offsets": offsets,
         },
         args.artifact_dir / "xgboost_pair_model.joblib",

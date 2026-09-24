@@ -31,11 +31,11 @@ def neural_probabilities(
         collate_transaction_sequences,
     )
 
-    from neural_model import TemporalGRUForecastModel
+    from neural_model import TemporalTransformerForecastModel
 
     device = torch.device(device_name)
     preprocessor = TransactionPreprocessor.load(artifact_dir / "preprocessor.json")
-    model = TemporalGRUForecastModel.from_preprocessor(preprocessor).to(device)
+    model = TemporalTransformerForecastModel.from_preprocessor(preprocessor).to(device)
     model.load_state_dict(torch.load(checkpoint, map_location=device, weights_only=True))
     model.eval()
     rows = PreprocessedTransactions.load_npz(artifact_dir / "test.npz")
@@ -261,6 +261,24 @@ def main() -> None:
             + source_weight * np.log(extra_sources[source_name] + 1e-7)
         )
         probabilities /= probabilities.sum(axis=1, keepdims=True)
+
+    if "micro_override_weight" in configuration:
+        micro_bundle = joblib.load(args.artifact_dir / "micro_model.joblib")
+        from micro_classifier_experiment import aggregate_text
+        micro_texts = aggregate_text(args.feature_csv).reindex(client_ids, fill_value="")
+        raw_probs = micro_bundle["model"].predict_proba(micro_texts)
+        micro_probs = np.zeros((len(micro_texts), len(LABELS)), dtype=np.float64)
+        for i, cls in enumerate(micro_bundle["model"].classes_):
+            micro_probs[:, cls] = raw_probs[:, i]
+            
+        w = configuration["micro_override_weight"]
+        targets = [LABELS.index('music'), LABELS.index('streaming'), LABELS.index('software')]
+        for t in targets:
+            probabilities[:, t] = np.exp(
+                (1 - w) * np.log(probabilities[:, t] + 1e-7) + w * np.log(micro_probs[:, t] + 1e-7)
+            )
+        probabilities /= probabilities.sum(axis=1, keepdims=True)
+
     for adjustment in configuration.get("class_adjustments", []):
         column = LABELS.index(str(adjustment["label"]))
         source_weight = float(adjustment["weight"])

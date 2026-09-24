@@ -1,49 +1,33 @@
 {
-  "macro_f1": 0.6058627104084853,
+  "macro_f1": 0.596825630575144,
   "weights": {
-    "catboost": 0.1,
-    "pair": 0.72,
-    "family": 0.07200000000000002,
-    "neural": 0.10800000000000003
+    "catboost": 0.30000000000000004,
+    "pair": 0.5599999999999999,
+    "family": 0.0,
+    "neural": 0.14
   },
   "class_offsets": {
-    "cloud": 0.525,
-    "gym": 0.5000000000000001,
-    "insurance": 0.5,
-    "mobile": 0.575,
-    "music": 0.8,
-    "software": 0.30000000000000004,
-    "streaming": 0.4,
-    "none": -0.2
+    "cloud": 0.7500000000000001,
+    "gym": 0.65,
+    "insurance": 0.5750000000000001,
+    "mobile": 0.5750000000000001,
+    "music": 0.9,
+    "software": 0.375,
+    "streaming": 0.5750000000000001,
+    "none": -0.225
   },
   "extra_weights": {
-    "stacking": 0.08,
-    "proxy_catboost": 0.04,
-    "xgboost_pair": 0.08,
-    "ranking": 0.32,
-    "embedding_pool": 0.4,
-    "description_stream": 0.12000000000000001
+    "xgboost_pair": 0.28,
+    "ranking": 0.24,
+    "embedding_pool": 0.32,
+    "description_stream": 0.06
   },
   "class_adjustments": [
     {
-      "source": "stacking",
-      "label": "none",
-      "weight": 0.225
-    },
-    {
-      "source": "xgboost_pair",
-      "label": "cloud",
-      "weight": -0.15
-    },
-    {
       "source": "ranking",
-      "label": "software",
+      "label": "mobile",
       "weight": 0.025
-    },
-    {
-      "source": "embedding_pool",
-      "label": "cloud",
-      "weight": 0.075
     }
-  ]
+  ],
+  "micro_override_weight": 0.1
 }

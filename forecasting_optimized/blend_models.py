@@ -197,43 +197,7 @@ def main() -> None:
         extra_sources["description_stream"] = np.stack(
             [description_by_client[client_id] for client_id in wide.index]
         )
-    catboost_tuned_path = args.artifact_dir / "catboost_tuned_valid_probabilities.npz"
-    if catboost_tuned_path.exists():
-        with np.load(catboost_tuned_path) as data:
-            ct_by_client = {
-                str(client_id): values
-                for client_id, values in zip(
-                    data["client_ids"], data["probabilities"]
-                )
-            }
-        extra_sources["catboost_tuned"] = np.stack(
-            [ct_by_client[client_id] for client_id in wide.index]
-        )
-    pair_tuned_path = args.artifact_dir / "pair_tuned_valid_probabilities.npz"
-    if pair_tuned_path.exists():
-        with np.load(pair_tuned_path) as data:
-            pt_by_client = {
-                str(client_id): values
-                for client_id, values in zip(
-                    data["client_ids"], data["probabilities"]
-                )
-            }
-        extra_sources["pair_tuned"] = np.stack(
-            [pt_by_client[client_id] for client_id in wide.index]
-        )
-    tfidf_path = args.artifact_dir / "tfidf_valid_probabilities.npz"
-    if tfidf_path.exists():
-        with np.load(tfidf_path) as data:
-            tf_by_client = {
-                str(client_id): values
-                for client_id, values in zip(
-                    data["client_ids"], data["probabilities"]
-                )
-            }
-        extra_sources["tfidf"] = np.stack(
-            [tf_by_client[client_id] for client_id in wide.index]
-        )
-
+    # Removed unsupported debug models (catboost_tuned, pair_tuned, tfidf)
     for source_name, source_probabilities in extra_sources.items():
         source_best = (score, 0.0, offsets, probabilities)
         for source_weight in np.linspace(0.02, 0.5, 25):
@@ -254,6 +218,41 @@ def main() -> None:
                 )
         if source_best[1] > 0:
             score, extra_weights[source_name], offsets, probabilities = source_best
+
+    # Micro-Classifier targeted override for digital subscriptions
+    micro_path = args.artifact_dir / "micro_valid_probabilities.npz"
+    if micro_path.exists():
+        with np.load(micro_path) as data:
+            micro_by_client = {
+                str(client_id): values for client_id, values in zip(data["client_ids"], data["probabilities"])
+            }
+        micro_probs = np.stack([micro_by_client.get(client_id, np.zeros(len(LABELS))) for client_id in wide.index])
+        
+        micro_best = (score, 0.0, offsets, probabilities)
+        for w in np.linspace(0.1, 1.0, 10):
+            candidate_probabilities = probabilities.copy()
+            targets = [LABELS.index('music'), LABELS.index('streaming'), LABELS.index('software')]
+            
+            # targeted gating
+            for t in targets:
+                candidate_probabilities[:, t] = np.exp(
+                    (1 - w) * np.log(probabilities[:, t] + 1e-7) + w * np.log(micro_probs[:, t] + 1e-7)
+                )
+            candidate_probabilities /= candidate_probabilities.sum(axis=1, keepdims=True)
+            
+            candidate_offsets, candidate_score = tune_offsets(actual, candidate_probabilities)
+            if candidate_score > micro_best[0]:
+                micro_best = (candidate_score, float(w), candidate_offsets, candidate_probabilities)
+                
+        if micro_best[1] > 0:
+            score, weight, offsets, probabilities = micro_best
+            micro_override_weight = weight
+            print(f"Applied micro_classifier override with weight {weight:.3f}, macro_f1={score:.4f}")
+        else:
+            micro_override_weight = 0.0
+    else:
+        micro_override_weight = 0.0
+
 
     # A small second-stage calibration lets a specialist affect only the class it
     # ranks well. The values are deliberately restricted and applied only when the
@@ -319,6 +318,7 @@ def main() -> None:
         "class_offsets": dict(zip(LABELS, offsets.tolist())),
         "extra_weights": extra_weights,
         "class_adjustments": class_adjustments,
+        "micro_override_weight": micro_override_weight,
     }
     (args.artifact_dir / "blend_config.json").write_text(
         json.dumps(configuration, indent=2), encoding="utf-8"
