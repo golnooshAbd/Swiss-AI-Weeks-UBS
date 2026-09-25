@@ -329,6 +329,11 @@ def main() -> None:
         np.log(np.clip(probabilities, 1e-7, 1.0)) + offsets
     ).argmax(axis=1)
     template["predicted_next_recurring_merchant"] = np.asarray(LABELS)[predicted]
+    np.savez_compressed(
+        args.artifact_dir / "test_probabilities.npz",
+        client_ids=template["client_id"].to_numpy(dtype=str),
+        probabilities=probabilities,
+    )
     args.output_csv.parent.mkdir(parents=True, exist_ok=True)
     template.to_csv(args.output_csv, index=False)
     print(f"Wrote {len(template):,} predictions to {args.output_csv}")
