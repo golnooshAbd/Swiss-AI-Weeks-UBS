@@ -243,6 +243,24 @@ def main() -> None:
         embedding_model = joblib.load(args.artifact_dir / "embedding_pool_model.joblib")
         extra_sources["embedding_pool"] = embedding_model["model"].predict_proba(pooled)
 
+    if "catboost_tuned" in requested_sources:
+        cat_bundle = joblib.load(args.artifact_dir / "catboost_tuned_bundle.joblib")
+        frame["clean_description"] = frame.get("clean_description", pd.Series(dtype=str)).fillna("").astype(str)
+        text = frame.groupby("client_id")["clean_description"].apply(lambda texts: " ".join(texts))
+        text = text.reindex(client_ids, fill_value="")
+        
+        test_tfidf = cat_bundle["tfidf"].transform(text)
+        test_svd = cat_bundle["svd"].transform(test_tfidf)
+        
+        tuned_wide = wide.copy()
+        for i in range(test_svd.shape[1]):
+            tuned_wide[f"tfidf_svd_{i}"] = pd.Series(test_svd[:, i], index=client_ids)
+            
+        tuned_wide = tuned_wide.reindex(columns=cat_bundle["model"].feature_names_)
+        extra_sources["catboost_tuned"] = probabilities_in_label_order(
+            cat_bundle["model"], tuned_wide
+        )
+
     if "description_stream" in requested_sources:
         from description_stream_experiment import description_features
 

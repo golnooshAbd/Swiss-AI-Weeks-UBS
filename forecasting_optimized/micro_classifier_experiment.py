@@ -52,15 +52,25 @@ def main() -> None:
     X_train_series = aggregate_text(FEATURE_DIR / "train_features.csv").reindex(train_targets.index, fill_value="")
     X_valid_series = aggregate_text(FEATURE_DIR / "valid_features.csv").reindex(valid_targets_full.index, fill_value="")
     
+    from sklearn.pipeline import FeatureUnion
     print("Training TF-IDF + Logistic Regression...", flush=True)
     model = make_pipeline(
-        TfidfVectorizer(
-            analyzer="word",
-            ngram_range=(1, 2),
-            min_df=2,
-            max_df=0.9,
-            sublinear_tf=True
-        ),
+        FeatureUnion([
+            ("word", TfidfVectorizer(
+                analyzer="word",
+                ngram_range=(1, 3),
+                min_df=2,
+                max_df=0.9,
+                sublinear_tf=True
+            )),
+            ("char", TfidfVectorizer(
+                analyzer="char_wb",
+                ngram_range=(3, 5),
+                min_df=3,
+                max_df=0.9,
+                sublinear_tf=True
+            ))
+        ]),
         LogisticRegression(
             class_weight="balanced",
             max_iter=1000,

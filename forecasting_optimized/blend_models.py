@@ -197,7 +197,19 @@ def main() -> None:
         extra_sources["description_stream"] = np.stack(
             [description_by_client[client_id] for client_id in wide.index]
         )
-    # Removed unsupported debug models (catboost_tuned, pair_tuned, tfidf)
+    catboost_tuned_path = args.artifact_dir / "catboost_tuned_valid_probabilities.npz"
+    if catboost_tuned_path.exists():
+        with np.load(catboost_tuned_path) as data:
+            catboost_tuned_by_client = {
+                str(client_id): values
+                for client_id, values in zip(
+                    data["client_ids"], data["probabilities"]
+                )
+            }
+        extra_sources["catboost_tuned"] = np.stack(
+            [catboost_tuned_by_client[client_id] for client_id in wide.index]
+        )
+    # Removed unsupported debug models (pair_tuned, tfidf)
     for source_name, source_probabilities in extra_sources.items():
         source_best = (score, 0.0, offsets, probabilities)
         for source_weight in np.linspace(0.02, 0.5, 25):

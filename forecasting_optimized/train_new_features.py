@@ -15,6 +15,7 @@ from catboost import CatBoostClassifier
 from features import FAMILIES, LABELS, build_feature_tables
 from experiment import probabilities_in_label_order
 from blend_models import tune_offsets
+import joblib
 
 ARTIFACT_DIR = Path(__file__).parent / "artifacts"
 REPO = Path(__file__).resolve().parents[1]
@@ -48,15 +49,15 @@ def get_text(frame):
 train_text = get_text(train_frame).reindex(train_targets.index, fill_value="")
 valid_text = get_text(valid_frame).reindex(valid_targets.index, fill_value="")
 
-tfidf = TfidfVectorizer(ngram_range=(1, 2), min_df=3, max_df=0.9, sublinear_tf=True)
+tfidf = TfidfVectorizer(ngram_range=(1, 3), min_df=2, max_df=0.9, sublinear_tf=True)
 train_tfidf = tfidf.fit_transform(train_text)
 valid_tfidf = tfidf.transform(valid_text)
 
-svd = TruncatedSVD(n_components=20, random_state=2026)
+svd = TruncatedSVD(n_components=150, random_state=2026)
 train_svd = svd.fit_transform(train_tfidf)
 valid_svd = svd.transform(valid_tfidf)
 
-for i in range(20):
+for i in range(150):
     train_wide[f"tfidf_svd_{i}"] = pd.Series(train_svd[:, i], index=train_targets.index)
     valid_wide[f"tfidf_svd_{i}"] = pd.Series(valid_svd[:, i], index=valid_targets.index)
 
@@ -68,17 +69,18 @@ print("Training CatBoost with new features...", flush=True)
 
 model = CatBoostClassifier(
     loss_function="MultiClass",
-    iterations=1400,
-    learning_rate=0.04,
-    depth=5,
-    l2_leaf_reg=14.7,
-    random_strength=0.58,
-    bagging_temperature=0.25,
-    border_count=64,
+    iterations=2500,
+    learning_rate=0.03,
+    depth=6,
+    l2_leaf_reg=5.0,
+    random_strength=0.5,
+    bagging_temperature=0.2,
+    border_count=128,
     auto_class_weights="Balanced",
     random_seed=2026,
     allow_writing_files=False,
     verbose=False,
+    task_type="CPU"
 )
 model.fit(
     train_wide,
@@ -99,3 +101,13 @@ np.savez_compressed(
     probabilities=probs,
 )
 print("Saved catboost_tuned_valid_probabilities.npz")
+
+joblib.dump(
+    {
+        "model": model,
+        "tfidf": tfidf,
+        "svd": svd
+    },
+    ARTIFACT_DIR / "catboost_tuned_bundle.joblib"
+)
+print("Saved catboost_tuned_bundle.joblib")
