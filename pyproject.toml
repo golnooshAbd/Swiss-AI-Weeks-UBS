@@ -20,3 +20,9 @@ dev = ["pytest>=8"]
 [tool.setuptools]
 packages = ["txembed"]
 
+[tool.pyright]
+include = ["src", "forecasting_optimized", "transaction_embedding"]
+extraPaths = ["src", "forecasting_optimized", "transaction_embedding"]
+venvPath = "."
+venv = ".venv"
+

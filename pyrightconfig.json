@@ -1,0 +1,42 @@
+{
+  "include": [
+    "src",
+    "forecasting_optimized",
+    "transaction_embedding"
+  ],
+  "extraPaths": [
+    "src",
+    "forecasting_optimized",
+    "transaction_embedding"
+  ],
+  "venvPath": ".",
+  "venv": ".venv",
+  "executionEnvironments": [
+    {
+      "root": "forecasting_optimized",
+      "extraPaths": [
+        "forecasting_optimized",
+        "transaction_embedding",
+        "src",
+        "."
+      ]
+    },
+    {
+      "root": "transaction_embedding",
+      "extraPaths": [
+        "transaction_embedding",
+        "src",
+        "."
+      ]
+    },
+    {
+      "root": "src",
+      "extraPaths": [
+        "src",
+        "transaction_embedding",
+        "forecasting_optimized",
+        "."
+      ]
+    }
+  ]
+}
