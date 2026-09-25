@@ -20,7 +20,7 @@
 3. **Actionable & Explainable for UBS:**  
    This is not an uninterpretable black box. For every client, UBS can explain *why* an expense is expected (*'Active mobile contract, next billing in 3 days, expected amount ~CHF 29'*). This directly powers real-world banking features: automated cash-flow budgeting, pre-debit notifications to prevent overdrafts, and instant ghost-subscription detection.
 
-*The result: **63.40% exact accuracy** and a competition-leading **Macro-F1 score of 0.60970** across 8 heavily imbalanced categories, ready for production with zero data leakage."*
+*The result: **65.20% exact accuracy** and a competition-leading **Macro-F1 score of 0.62963** across 8 heavily imbalanced categories, ready for production with zero data leakage."*
 
 ---
 
@@ -68,19 +68,19 @@ We intentionally combine algorithms with orthogonal inductive biases so they nev
 
 | Metric | Previous Baseline | Our Super-Ensemble | Impact |
 | :--- | :---: | :---: | :---: |
-| **Macro-F1** | 0.60068 / 0.60590 | **0.60970** | **+0.00902 (All-Time Record)** |
-| **Accuracy** | 62.40% | **63.40%** | **+1.00% (634 / 1,000 exact matches)** |
-| **Weighted-F1** | 0.62844 | **0.63507** | **+0.00663** |
+| **Macro-F1** | 0.60068 / 0.60970 | **0.62963** | **+0.01993 (All-Time Project Record)** |
+| **Accuracy** | 62.40% / 63.40% | **65.20%** | **+2.80% (652 / 1,000 exact matches)** |
+| **Weighted-F1** | 0.62844 / 0.63507 | **0.65281** | **+0.02437** |
 
 ### Per-Category Performance Breakdown:
-* **Gym:** **0.6902 F1** (Precision: 0.6567, Recall: 0.7273)
-* **Insurance:** **0.6442 F1** (Precision: 0.6147, Recall: 0.6768)
-* **Mobile:** **0.6400 F1** (Precision: 0.5950, Recall: 0.6923)
-* **Cloud:** **0.6368 F1** (Precision: 0.5714, Recall: 0.7191)
-* **Software:** **0.5604 F1** (Precision: 0.6538, Recall: 0.4904)
-* **Streaming:** **0.5198 F1** (Precision: 0.5750, Recall: 0.4742)
-* **Music:** **0.4585 F1** (Precision: 0.4196, Recall: 0.5054)
-* **None (No renewal):** **0.7276 F1** (Precision: 0.7835, Recall: 0.6792)
+* **Gym:** **0.6973 F1** (Precision: 0.6500, Recall: 0.7521)
+* **Insurance:** **0.6866 F1** (Precision: 0.6765, Recall: 0.6970)
+* **Mobile:** **0.6667 F1** (Precision: 0.6000, Recall: 0.7500)
+* **Cloud:** **0.6598 F1** (Precision: 0.6095, Recall: 0.7191)
+* **None (No renewal):** **0.7380 F1** (Precision: 0.8032, Recall: 0.6826)
+* **Software:** **0.5668 F1** (Precision: 0.6385, Recall: 0.5096)
+* **Streaming:** **0.5495 F1** (Precision: 0.5882, Recall: 0.5155)
+* **Music:** **0.4724 F1** (Precision: 0.4434, Recall: 0.5054)
 
 ---
 

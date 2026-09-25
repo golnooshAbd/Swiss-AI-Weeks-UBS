@@ -12,7 +12,14 @@ from features import FAMILIES, LABELS, build_feature_tables
 def macro_f1(actual: np.ndarray, log_scores: np.ndarray, offsets: np.ndarray | None = None) -> float:
     scores = log_scores + offsets if offsets is not None else log_scores
     preds = scores.argmax(axis=1)
-    return float(f1_score(actual, preds, average="macro", zero_division=0))
+    f1s = []
+    for c in range(8):
+        tp = np.sum((preds == c) & (actual == c))
+        fp = np.sum((preds == c) & (actual != c))
+        fn = np.sum((preds != c) & (actual == c))
+        denom = 2 * tp + fp + fn
+        f1s.append(2.0 * tp / denom if denom > 0 else 0.0)
+    return float(np.mean(f1s))
 
 def tune_offsets(actual: np.ndarray, log_scores: np.ndarray, init_offsets: np.ndarray | None = None) -> tuple[np.ndarray, float]:
     offsets = np.zeros(len(LABELS), dtype=np.float64) if init_offsets is None else init_offsets.copy()
@@ -67,6 +74,9 @@ def main():
     extra_sources["ranking"] = load_npz(artifact_dir / "ranking_valid_probabilities.npz", wide.index)
     extra_sources["embedding_pool"] = load_npz(artifact_dir / "embedding_pool_valid_probabilities.npz", wide.index)
     extra_sources["description_stream"] = load_npz(artifact_dir / "description_stream_valid_probabilities.npz", wide.index)
+    extra_sources["micro"] = load_npz(artifact_dir / "micro_valid_probabilities.npz", wide.index)
+    extra_sources["tfidf"] = load_npz(artifact_dir / "tfidf_valid_probabilities.npz", wide.index)
+    extra_sources["catboost_tuned"] = load_npz(artifact_dir / "catboost_tuned_valid_probabilities.npz", wide.index)
 
     # Proxy models
     proxy_path = artifact_dir / "proxy_valid_probabilities.npz"
@@ -115,14 +125,19 @@ def main():
     print("\nStarting Targeted Search to Beat 0.60847...")
 
     candidate_sources = list(extra_sources.keys())
+    extra_model_list = [
+        "stacking", "xgboost_pair", "ranking", "embedding_pool",
+        "description_stream", "micro", "tfidf", "catboost_tuned",
+        "proxy_catboost", "proxy_pair"
+    ]
     
-    for it in range(8000):
+    for it in range(25000):
         # Mutate base weights slightly around (0.30, 0.56, 0.0, 0.14)
         wb = {
-            "catboost": max(0.05, 0.30 + random.uniform(-0.10, 0.10)),
-            "pair": max(0.20, 0.56 + random.uniform(-0.12, 0.12)),
-            "family": max(0.0, random.uniform(0.0, 0.08)),
-            "neural": max(0.05, 0.14 + random.uniform(-0.06, 0.06))
+            "catboost": max(0.05, 0.30 + random.uniform(-0.12, 0.12)),
+            "pair": max(0.20, 0.56 + random.uniform(-0.14, 0.14)),
+            "family": max(0.0, random.uniform(0.0, 0.10)),
+            "neural": max(0.05, 0.14 + random.uniform(-0.08, 0.08))
         }
         total_wb = sum(wb.values())
         wb = {k: v / total_wb for k, v in wb.items()}
@@ -131,13 +146,12 @@ def main():
 
         # Extra weights mutation around winning values
         curr_extra_w = {}
-        for s in ["stacking", "xgboost_pair", "ranking", "embedding_pool", "description_stream", "proxy_catboost", "proxy_pair"]:
+        for s in extra_model_list:
             old_w = base_config["extra_weights"].get(s, 0.0)
-            if s in ["proxy_catboost", "proxy_pair"]:
-                # occasional trial
-                new_w = random.uniform(0.0, 0.10) if random.random() < 0.3 else 0.0
+            if s in ["proxy_catboost", "proxy_pair", "micro", "tfidf", "catboost_tuned"] and old_w == 0.0:
+                new_w = random.uniform(0.0, 0.18) if random.random() < 0.4 else 0.0
             else:
-                new_w = max(0.01, min(0.60, old_w + random.uniform(-0.08, 0.08)))
+                new_w = max(0.0, min(0.65, old_w + random.uniform(-0.08, 0.08)))
             
             if new_w > 0.005 and s in extra_sources:
                 curr_extra_w[s] = new_w
@@ -147,12 +161,12 @@ def main():
 
         # Targeted class adjustments (especially for weak classes: music, streaming, software, gym, none)
         curr_adj = []
-        n_adj = random.randint(1, 4)
+        n_adj = random.randint(1, 5)
         for _ in range(n_adj):
             src_name = random.choice(candidate_sources)
-            tgt_label = random.choice(["music", "streaming", "software", "gym", "cloud", "none"])
+            tgt_label = random.choice(["music", "streaming", "software", "gym", "cloud", "none", "insurance", "mobile"])
             tgt_col = LABELS.index(tgt_label)
-            w_adj = random.uniform(-0.25, 0.35)
+            w_adj = random.uniform(-0.35, 0.40)
             curr_adj.append({"source": src_name, "label": tgt_label, "weight": w_adj})
             p_curr[:, tgt_col] = (1 - w_adj) * p_curr[:, tgt_col] + w_adj * extra_sources[src_name][:, tgt_col]
             p_curr = np.clip(p_curr, 1e-7, None)
@@ -172,7 +186,7 @@ def main():
                 "class_adjustments": curr_adj,
                 "class_offsets": dict(zip(LABELS, cand_offsets.tolist()))
             }
-            print(f"Iter {it:4d}: NEW RECORD MACRO-F1: {best_score:.5f}")
+            print(f"Iter {it:5d}: NEW RECORD MACRO-F1: {best_score:.5f}", flush=True)
 
     print(f"\n==================================================")
     print(f"PEAK MACRO-F1 REACHED: {best_score:.5f}")

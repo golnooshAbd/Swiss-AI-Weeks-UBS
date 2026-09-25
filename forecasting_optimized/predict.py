@@ -273,6 +273,22 @@ def main() -> None:
             .to_numpy()
         )
 
+    if "micro" in requested_sources:
+        micro_bundle = joblib.load(args.artifact_dir / "micro_model.joblib")
+        from micro_classifier_experiment import aggregate_text as agg_micro_text
+        micro_texts = agg_micro_text(args.feature_csv).reindex(client_ids, fill_value="")
+        raw_probs = micro_bundle["model"].predict_proba(micro_texts)
+        micro_probs = np.zeros((len(micro_texts), len(LABELS)), dtype=np.float64)
+        for i, cls in enumerate(micro_bundle["model"].classes_):
+            micro_probs[:, cls] = raw_probs[:, i]
+        extra_sources["micro"] = micro_probs
+
+    if "tfidf" in requested_sources:
+        tfidf_bundle = joblib.load(args.artifact_dir / "tfidf_model.joblib")
+        from tfidf_experiment import aggregate_text as agg_tfidf_text
+        tfidf_texts = agg_tfidf_text(args.feature_csv).reindex(client_ids, fill_value="")
+        extra_sources["tfidf"] = tfidf_bundle["model"].predict_proba(tfidf_texts)
+
     for source_name, source_weight in configuration.get("extra_weights", {}).items():
         probabilities = np.exp(
             (1 - source_weight) * np.log(probabilities + 1e-7)

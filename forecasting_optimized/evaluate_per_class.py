@@ -100,6 +100,14 @@ def main():
         src = adj["source"]
         filename = "xgboost_valid_probabilities.npz" if src == "xgboost_pair" else f"{src}_valid_probabilities.npz"
         extra = load_npz(artifact_dir / filename, wide.index)
+        if extra is None and src.startswith("proxy_"):
+            proxy_path = artifact_dir / "proxy_valid_probabilities.npz"
+            if proxy_path.exists():
+                with np.load(proxy_path) as data:
+                    proxy_order = [str(v) for v in data["client_ids"]]
+                    positions = {cid: idx for idx, cid in enumerate(proxy_order)}
+                    key = "catboost" if src == "proxy_catboost" else "pair"
+                    extra = np.stack([data[key][positions[cid]] for cid in wide.index])
         col = LABELS.index(adj["label"])
         probabilities[:, col] = (1 - adj["weight"]) * probabilities[:, col] + adj["weight"] * extra[:, col]
         probabilities = np.clip(probabilities, 1e-7, None)

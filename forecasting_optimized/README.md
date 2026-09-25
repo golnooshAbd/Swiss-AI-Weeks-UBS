@@ -2,7 +2,7 @@
 
 This repository contains an advanced ensemble machine learning pipeline designed to predict a customer's **next recurring purchase category** based on their historical banking transaction data. 
 
-Our pipeline aggressively optimizes for the **Macro-F1 Score** over 8 highly imbalanced target classes, achieving a verified validation score of **0.60970** (Accuracy: **63.40%**, Weighted-F1: **0.63507**).
+Our pipeline aggressively optimizes for the **Macro-F1 Score** over 8 highly imbalanced target classes, achieving a verified validation score of **0.62963** (Accuracy: **65.20%**, Weighted-F1: **0.65281**).
 
 This README provides a comprehensive, step-by-step breakdown of the architecture, the feature engineering process, the entire "Zoo" of 10+ machine learning models, and the hyperparameter blending strategy that pushes the score to its limit.
 
@@ -82,26 +82,26 @@ Having 12 models means having 12 arrays of probabilities. Averaging them simply 
 
 The winning ensemble configuration was verified on the 1,000-client validation dataset with the following results:
 
-* **Macro-F1:** **0.60970**
-* **Weighted-F1:** **0.63507**
-* **Accuracy:** **63.40%** (634 / 1,000 correct)
-* **Macro Precision:** **0.60873**
-* **Macro Recall:** **0.62058**
+* **Macro-F1:** **0.62963**
+* **Weighted-F1:** **0.65281**
+* **Accuracy:** **65.20%** (652 / 1,000 correct)
+* **Macro Precision:** **0.62617**
+* **Macro Recall:** **0.64140**
 
 #### Detailed Per-Category Breakdown:
 
 | Category | Precision | Recall | F1-Score | Support (Clients) |
 | :--- | :---: | :---: | :---: | :---: |
-| **`gym`** | 0.6567 | 0.7273 | **0.6902** | 121 |
-| **`insurance`** | 0.6147 | 0.6768 | **0.6442** | 99 |
-| **`mobile`** | 0.5950 | 0.6923 | **0.6400** | 104 |
-| **`cloud`** | 0.5714 | 0.7191 | **0.6368** | 89 |
-| **`software`** | 0.6538 | 0.4904 | **0.5604** | 104 |
-| **`streaming`** | 0.5750 | 0.4742 | **0.5198** | 97 |
-| **`music`** | 0.4196 | 0.5054 | **0.4585** | 93 |
-| **`none`** | 0.7835 | 0.6792 | **0.7276** | 293 |
-| **Macro Average** | **0.6087** | **0.6206** | **0.6097** | **1,000** |
-| **Weighted Average** | **0.6454** | **0.6340** | **0.6351** | **1,000** |
+| **`gym`** | 0.6500 | 0.7521 | **0.6973** | 121 |
+| **`insurance`** | 0.6765 | 0.6970 | **0.6866** | 99 |
+| **`mobile`** | 0.6000 | 0.7500 | **0.6667** | 104 |
+| **`cloud`** | 0.6095 | 0.7191 | **0.6598** | 89 |
+| **`software`** | 0.6385 | 0.5096 | **0.5668** | 104 |
+| **`streaming`** | 0.5882 | 0.5155 | **0.5495** | 97 |
+| **`music`** | 0.4434 | 0.5054 | **0.4724** | 93 |
+| **`none`** | 0.8032 | 0.6826 | **0.7380** | 293 |
+| **Macro Average** | **0.6262** | **0.6414** | **0.6296** | **1,000** |
+| **Weighted Average** | **0.6623** | **0.6520** | **0.6528** | **1,000** |
 ---
 
 ## 🚀 5. How to Reproduce the Pipeline

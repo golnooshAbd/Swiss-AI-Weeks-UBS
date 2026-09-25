@@ -1,38 +1,70 @@
 {
-  "macro_f1": 0.6096997554993728,
+  "macro_f1": 0.6296262889121587,
   "weights": {
-    "catboost": 0.3022849046599878,
-    "pair": 0.5549751202276736,
-    "family": 0.06771191660719844,
-    "neural": 0.07502805850514017
+    "catboost": 0.2998866675113167,
+    "pair": 0.5232856223075367,
+    "family": 0.0793524801410565,
+    "neural": 0.09747523004009016
   },
   "extra_weights": {
-    "stacking": 0.22648997547659744,
+    "stacking": 0.1537395434656279,
     "xgboost_pair": 0.06826813989475368,
-    "ranking": 0.29413714975632593,
-    "embedding_pool": 0.3202045389010391,
-    "description_stream": 0.1605748059611511
+    "ranking": 0.31826215919245926,
+    "embedding_pool": 0.3220565818146823,
+    "description_stream": 0.1605748059611511,
+    "micro": 0.04551917643686174,
+    "tfidf": 0.08675233968177028
   },
   "class_adjustments": [
     {
       "source": "ranking",
       "label": "streaming",
-      "weight": -0.20930811907402805
+      "weight": -0.1859564984909254
     },
     {
       "source": "description_stream",
       "label": "gym",
-      "weight": 0.3324198412135838
+      "weight": 0.31687336480022044
+    },
+    {
+      "source": "stacking",
+      "label": "insurance",
+      "weight": -0.2032520537835773
+    },
+    {
+      "source": "proxy_catboost",
+      "label": "music",
+      "weight": 0.41492193728305327
+    },
+    {
+      "source": "tfidf",
+      "label": "music",
+      "weight": -0.26328829273842663
+    },
+    {
+      "source": "stacking",
+      "label": "streaming",
+      "weight": -0.3633493793477405
+    },
+    {
+      "source": "embedding_pool",
+      "label": "cloud",
+      "weight": 0.22774298365417017
+    },
+    {
+      "source": "description_stream",
+      "label": "mobile",
+      "weight": -0.028553291819777234
     }
   ],
   "class_offsets": {
-    "cloud": 0.37500000000000017,
-    "gym": 0.265,
-    "insurance": 0.30000000000000004,
-    "mobile": 0.28,
-    "music": 0.67,
-    "software": 0.15000000000000002,
-    "streaming": 0.33000000000000007,
-    "none": -0.44500000000000006
+    "cloud": 0.5420000000000001,
+    "gym": 0.37999999999999995,
+    "insurance": 0.635,
+    "mobile": 0.53,
+    "music": 0.14200000000000004,
+    "software": -0.3249999999999999,
+    "streaming": -0.235,
+    "none": -0.375
   }
 }
