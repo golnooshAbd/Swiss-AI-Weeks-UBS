@@ -14,3 +14,5 @@ transaction_embedding/.pytest_cache/
 *.csv
 **/.venv/
 *.zip
+catboost_info/
+**/catboost_info/

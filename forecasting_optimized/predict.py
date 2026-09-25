@@ -120,8 +120,8 @@ def main() -> None:
     wide, pairs = build_feature_tables(frame, client_ids)
 
     bundle = joblib.load(args.artifact_dir / "model.joblib")
-    wide = wide.reindex(columns=bundle["wide_columns"])
-    pairs = pairs.reindex(columns=bundle["pair_columns"])
+    wide = wide.reindex(columns=bundle["wide_columns"]).fillna(0.0)
+    pairs = pairs.reindex(columns=bundle["pair_columns"]).fillna(0.0)
     catboost = probabilities_in_label_order(bundle["catboost_multiclass_model"], wide)
     pair = as_distribution(pair_probabilities(bundle["pair_model"], pairs).to_numpy())
 
@@ -173,8 +173,8 @@ def main() -> None:
     }
     if "stacking" in requested_sources:
         stacking = joblib.load(args.artifact_dir / "stacking_model.joblib")
-        stacking_pairs = pairs.reindex(columns=stacking["pair_columns"])
-        stacking_wide = wide.reindex(columns=stacking["wide_columns"])
+        stacking_pairs = pairs.reindex(columns=stacking["pair_columns"]).fillna(0.0)
+        stacking_wide = wide.reindex(columns=stacking["wide_columns"]).fillna(0.0)
         fold_pairs = [
             pair_probabilities(model, stacking_pairs).reindex(client_ids).to_numpy()
             for model in stacking["pair_models"]
@@ -200,7 +200,7 @@ def main() -> None:
 
     if "xgboost_pair" in requested_sources:
         xgboost_bundle = joblib.load(args.artifact_dir / "xgboost_pair_model.joblib")
-        xgboost_pairs = pairs.reindex(columns=xgboost_bundle["columns"])
+        xgboost_pairs = pairs.reindex(columns=xgboost_bundle["columns"]).fillna(0.0)
         extra_sources["xgboost_pair"] = as_distribution(
             pair_probabilities(xgboost_bundle["model"], xgboost_pairs)
             .reindex(client_ids)
@@ -209,8 +209,8 @@ def main() -> None:
 
     if "ranking" in requested_sources:
         ranking = joblib.load(args.artifact_dir / "ranking_model.joblib")
-        ranking_pairs = pairs.reindex(columns=ranking["pair_columns"])
-        ranking_wide = wide.reindex(columns=ranking["wide_columns"])
+        ranking_pairs = pairs.reindex(columns=ranking["pair_columns"]).fillna(0.0)
+        ranking_wide = wide.reindex(columns=ranking["wide_columns"]).fillna(0.0)
         scores = ranking["ranker"].predict(ranking_pairs).reshape(len(client_ids), len(FAMILIES))
         conditional = softmax(scores, ranking["temperature"])
         none_probability = ranking["none_model"].predict_proba(ranking_wide)[:, 1]
@@ -266,7 +266,7 @@ def main() -> None:
 
         description_bundle = joblib.load(args.artifact_dir / "description_stream_model.joblib")
         description_pairs = pairs.join(description_features(frame, client_ids))
-        description_pairs = description_pairs.reindex(columns=description_bundle["columns"])
+        description_pairs = description_pairs.reindex(columns=description_bundle["columns"]).fillna(0.0)
         extra_sources["description_stream"] = as_distribution(
             pair_probabilities(description_bundle["model"], description_pairs)
             .reindex(client_ids)

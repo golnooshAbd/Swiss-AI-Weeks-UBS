@@ -35,8 +35,8 @@ def main():
     bundle = joblib.load(artifact_dir / "model.joblib")
     frame = pd.read_csv(feature_csv)
     wide, pairs = build_feature_tables(frame, labels["client_id"])
-    wide = wide.reindex(columns=bundle["wide_columns"])
-    pairs = pairs.reindex(columns=bundle["pair_columns"])
+    wide = wide.reindex(columns=bundle["wide_columns"]).fillna(0.0)
+    pairs = pairs.reindex(columns=bundle["pair_columns"]).fillna(0.0)
     
     catboost = probabilities_in_label_order(bundle["catboost_multiclass_model"], wide)
     pair = as_distribution(pair_probabilities(bundle["pair_model"], pairs).to_numpy())
@@ -66,10 +66,16 @@ def main():
     # Extra models
     for name, weight in config.get("extra_weights", {}).items():
         if weight > 0:
-            extra = load_npz(artifact_dir / f"{name}_valid_probabilities.npz", wide.index)
+            filename = "xgboost_valid_probabilities.npz" if name == "xgboost_pair" else f"{name}_valid_probabilities.npz"
+            extra = load_npz(artifact_dir / filename, wide.index)
             if extra is None and name.startswith("proxy_"):
-                # Handle proxy exception if needed
-                continue
+                proxy_path = artifact_dir / "proxy_valid_probabilities.npz"
+                if proxy_path.exists():
+                    with np.load(proxy_path) as data:
+                        proxy_order = [str(v) for v in data["client_ids"]]
+                        positions = {cid: idx for idx, cid in enumerate(proxy_order)}
+                        key = "catboost" if name == "proxy_catboost" else "pair"
+                        extra = np.stack([data[key][positions[cid]] for cid in wide.index])
             if extra is not None:
                 probabilities = np.exp(
                     (1 - weight) * np.log(probabilities + 1e-7) + 
@@ -91,7 +97,9 @@ def main():
         
     # Adjustments
     for adj in config.get("class_adjustments", []):
-        extra = load_npz(artifact_dir / f"{adj['source']}_valid_probabilities.npz", wide.index)
+        src = adj["source"]
+        filename = "xgboost_valid_probabilities.npz" if src == "xgboost_pair" else f"{src}_valid_probabilities.npz"
+        extra = load_npz(artifact_dir / filename, wide.index)
         col = LABELS.index(adj["label"])
         probabilities[:, col] = (1 - adj["weight"]) * probabilities[:, col] + adj["weight"] * extra[:, col]
         probabilities = np.clip(probabilities, 1e-7, None)

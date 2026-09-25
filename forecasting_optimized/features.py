@@ -315,13 +315,64 @@ def build_feature_tables(
             family: family_stats[family].get("days_since_last", np.inf)
             for family in FAMILIES
         }
+        proj_days = {
+            family: family_stats[family].get("projected_days_to_next", np.nan)
+            for family in FAMILIES
+        }
+        valid_projs = {
+            f: p for f, p in proj_days.items() 
+            if np.isfinite(p) and 0 <= p <= 90
+        }
+        min_proj = min(valid_projs.values()) if valid_projs else np.nan
+        cycles = {
+            family: family_stats[family].get("cycles_since_last", np.nan)
+            for family in FAMILIES
+        }
+        lapsed = {
+            family: float(np.isfinite(cycles[family]) and cycles[family] > 1.8)
+            for family in FAMILIES
+        }
+        active_candidates = [
+            f for f in FAMILIES
+            if counts[f] >= 2 and np.isfinite(cycles[f]) and cycles[f] <= 1.8 and f in valid_projs
+        ]
+        n_active = float(len(active_candidates))
+        global_features["active_candidate_count"] = n_active
+        wide["active_candidate_count"] = n_active
+
         for family in FAMILIES:
             stats = family_stats[family]
+            p_val = proj_days[family]
+            amed = stats.get("amount_median", 0.0)
+            
+            if np.isfinite(p_val) and 0 <= p_val <= 90:
+                rank = float(1 + sum(v < p_val for v in valid_projs.values()))
+                gap = float(p_val - min_proj)
+            else:
+                rank = 8.0
+                gap = 999.0
+                
+            is_act = float(family in active_candidates)
+            family_super_signals = {
+                "proj_rank": rank,
+                "is_proj_rank_1": float(rank == 1.0),
+                "is_proj_rank_2": float(rank == 2.0),
+                "proj_gap_to_min": gap,
+                "is_lapsed": lapsed[family],
+                "is_active_candidate": is_act,
+                "is_only_active_candidate": float(n_active == 1.0 and is_act),
+                "amount_below_16": float(amed > 0 and amed < 16.0),
+                "amount_16_to_28": float(16.0 <= amed < 28.0),
+                "amount_above_28": float(amed >= 28.0),
+            }
+            wide.update({f"{family}__{k}": v for k, v in family_super_signals.items()})
+
             pair: dict[str, float | str] = {
                 "client_id": client_id,
                 "family": family,
                 **global_features,
                 **stats,
+                **family_super_signals,
                 "count_rank": float(
                     1 + sum(value > counts[family] for value in counts.values())
                 ),

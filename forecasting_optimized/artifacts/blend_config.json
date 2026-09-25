@@ -1,38 +1,38 @@
 {
-  "extra_weights": {
-    "stacking": 0.2005314610066317,
-    "xgboost_pair": 0.13773747850767598,
-    "ranking": 0.24885651963809594,
-    "embedding_pool": 0.3320089073653333,
-    "description_stream": 0.1149327326845823
+  "macro_f1": 0.6096997554993728,
+  "weights": {
+    "catboost": 0.3022849046599878,
+    "pair": 0.5549751202276736,
+    "family": 0.06771191660719844,
+    "neural": 0.07502805850514017
   },
-  "micro_override_weight": 0.0,
+  "extra_weights": {
+    "stacking": 0.22648997547659744,
+    "xgboost_pair": 0.06826813989475368,
+    "ranking": 0.29413714975632593,
+    "embedding_pool": 0.3202045389010391,
+    "description_stream": 0.1605748059611511
+  },
   "class_adjustments": [
+    {
+      "source": "ranking",
+      "label": "streaming",
+      "weight": -0.20930811907402805
+    },
     {
       "source": "description_stream",
       "label": "gym",
-      "weight": 0.3569676753916822
-    },
-    {
-      "source": "embedding_pool",
-      "label": "streaming",
-      "weight": 0.11731628167551539
+      "weight": 0.3324198412135838
     }
   ],
   "class_offsets": {
-    "cloud": 0.3250000000000001,
-    "gym": 0.275,
-    "insurance": 0.4,
-    "mobile": 0.4,
-    "music": 0.7000000000000001,
+    "cloud": 0.37500000000000017,
+    "gym": 0.265,
+    "insurance": 0.30000000000000004,
+    "mobile": 0.28,
+    "music": 0.67,
     "software": 0.15000000000000002,
-    "streaming": 0.6000000000000001,
-    "none": -0.42500000000000004
-  },
-  "weights": {
-    "catboost": 0.3,
-    "pair": 0.56,
-    "family": 0.0,
-    "neural": 0.14
+    "streaming": 0.33000000000000007,
+    "none": -0.44500000000000006
   }
 }
