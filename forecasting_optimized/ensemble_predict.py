@@ -13,7 +13,7 @@ from features import LABELS
 
 
 def load_probabilities(path: Path) -> pd.DataFrame:
-    with np.load(path, allow_pickle=False) as saved:
+    with np.load(path, allow_pickle=True) as saved:
         client_ids = saved["client_ids"].astype(str)
         probabilities = saved["probabilities"].astype(np.float64)
     if probabilities.shape != (len(client_ids), len(LABELS)):
@@ -37,7 +37,7 @@ def main() -> None:
     artifacts = repository / "forecasting_optimized" / "artifacts"
     parser = argparse.ArgumentParser(description="Combine Fausto and LightGBM test probabilities")
     parser.add_argument("--fausto-valid", type=Path, default=artifacts / "blended_valid_probabilities.npz")
-    parser.add_argument("--fausto-test", type=Path, default=artifacts / "fausto_test_probabilities.npz")
+    parser.add_argument("--fausto-test", type=Path, default=artifacts / "test_probabilities.npz")
     parser.add_argument("--lightgbm-valid", type=Path, default=artifacts / "lightgbm" / "valid_probabilities.npz")
     parser.add_argument("--lightgbm-test", type=Path, default=artifacts / "lightgbm" / "test_probabilities.npz")
     parser.add_argument("--validation-labels", type=Path, default=repository / "data" / "dataset" / "valid_labels.csv")
