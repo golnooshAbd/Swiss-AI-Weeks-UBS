@@ -11,8 +11,7 @@ behaviour and forecast what is likely to happen next. The long-term goal is to h
 
 ## Current status
 
-The feature dataset and transaction embedding pipeline are complete. The forecasting
-and alerting model has **not** been implemented yet.
+The feature dataset and transaction embedding pipeline are complete. The **transaction forecasting model** is implemented with a 12-model ensemble achieving a peak **Macro-F1 of 0.60068** (see [`forecasting_optimized/README.md`](forecasting_optimized/README.md)). Alerting has **not** been implemented yet.
 
 ```text
 cleaned transactions
@@ -23,7 +22,7 @@ one 128d embedding per transaction
         ↓
 transactions grouped by client and ordered by time
         ↓
-future forecasting / anomaly model (not implemented)
+future forecasting ensemble (Macro-F1 0.6007, see forecasting_optimized/)
 ```
 
 ## Dataset and added features

@@ -2,7 +2,7 @@
 
 This repository contains an advanced ensemble machine learning pipeline designed to predict a customer's **next recurring purchase category** based on their historical banking transaction data. 
 
-Our pipeline aggressively optimizes for the **Macro-F1 Score** over 8 highly imbalanced target classes, achieving a peak validation score of **0.60847**.
+Our pipeline aggressively optimizes for the **Macro-F1 Score** over 8 highly imbalanced target classes, achieving a verified validation score of **0.60068** (Accuracy: **62.40%**, Weighted-F1: **0.62844**).
 
 This README provides a comprehensive, step-by-step breakdown of the architecture, the feature engineering process, the entire "Zoo" of 10+ machine learning models, and the hyperparameter blending strategy that pushes the score to its limit.
 
@@ -78,8 +78,30 @@ Having 12 models means having 12 arrays of probabilities. Averaging them simply 
 3. **Geometric Averaging:** Instead of `(A + B) / 2`, we use `exp( w * log(A) + (1-w) * log(B) )`. This harshly punishes models that are completely wrong (a probability near 0 drags the whole blend down), forcing the models to agree.
 4. **Class-Specific Offsets:** Finally, the blender applies a mathematical bias (offset) to specific classes. For example, if the ensemble is systematically under-predicting the `music` category, the blender might learn to add `+0.70` to the raw logarithmic score of the `music` class across all predictions.
 
-**The final winning configuration achieved a Macro-F1 of 0.60847.**
+### Verified Validation Performance
 
+The winning ensemble configuration was verified on the 1,000-client validation dataset with the following results:
+
+* **Macro-F1:** **0.60068**
+* **Weighted-F1:** **0.62844**
+* **Accuracy:** **62.40%** (624 / 1,000 correct)
+* **Macro Precision:** **0.59968**
+* **Macro Recall:** **0.61333**
+
+#### Detailed Per-Category Breakdown:
+
+| Category | Precision | Recall | F1-Score | Support (Clients) |
+| :--- | :---: | :---: | :---: | :---: |
+| **`gym`** | 0.6719 | 0.7107 | **0.6908** | 121 |
+| **`cloud`** | 0.6170 | 0.6517 | **0.6339** | 89 |
+| **`mobile`** | 0.5468 | 0.7308 | **0.6255** | 104 |
+| **`insurance`** | 0.5676 | 0.6364 | **0.6000** | 99 |
+| **`software`** | 0.6667 | 0.4808 | **0.5587** | 104 |
+| **`streaming`** | 0.5000 | 0.5464 | **0.5222** | 97 |
+| **`music`** | 0.4035 | 0.4946 | **0.4444** | 93 |
+| **`none`** | 0.8240 | 0.6553 | **0.7300** | 293 |
+| **Macro Average** | **0.5997** | **0.6133** | **0.6007** | **1,000** |
+| **Weighted Average** | **0.6461** | **0.6240** | **0.6284** | **1,000** |
 ---
 
 ## 🚀 5. How to Reproduce the Pipeline
